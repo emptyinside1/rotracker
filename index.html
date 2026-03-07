@@ -2,76 +2,88 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <!-- Отключаем зуммирование для нативного ощущения -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
-    <!-- Настройки для PWA и интеграции с Android -->
     <meta name="theme-color" content="#000000">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>МОНОЛИТ</title>
+    <title>МОНОЛИТ | СИНХРОНИЗАЦИЯ</title>
     
-    <!-- Подключение React -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Подключение Babel для JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Подключение Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
-        /* Брутальный сброс стилей для мобильных */
         body { 
             background-color: #000000; 
             color: #e5e5e5; 
-            overscroll-behavior-y: none; /* Убирает эффект резиновой прокрутки */
-            -webkit-tap-highlight-color: transparent; /* Убирает синюю вспышку при тапе на Android */
-            user-select: none; /* Запрет выделения текста как в нативных аппках */
+            overscroll-behavior-y: none;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none; 
             -webkit-user-select: none;
         }
-        
-        /* Разрешаем выделение текста только в полях ввода */
         input { 
             user-select: auto; 
             -webkit-user-select: auto;
         }
-
-        /* Кастомный минималистичный скроллбар (если контента много) */
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: #000000; }
         ::-webkit-scrollbar-thumb { background: #333333; }
+        .safe-pb { padding-bottom: env(safe-area-inset-bottom, 24px); }
+
+        @media (hover: hover) and (pointer: fine) {
+            .control-btn { opacity: 0; transition: opacity 0.2s ease-in-out; }
+            .task-group:hover .control-btn { opacity: 1; }
+            .control-btn-mobile-border { border-color: transparent !important; }
+        }
         
-        /* Безопасные отступы для экранов без рамок (челок/вырезов) */
-        .safe-pb { padding-bottom: env(safe-area-inset-bottom, 20px); }
+        @media (hover: none) and (pointer: coarse) {
+            .control-btn { opacity: 0.5; }
+            .control-btn-mobile-border { border-color: #1a1a1a; }
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
-    <script type="text/babel">
+    <!-- Обрати внимание: добавлен data-type="module" для работы импортов Firebase -->
+    <script type="text/babel" data-type="module">
         const { useState, useEffect } = React;
+        
+        // --- FIREBASE ИМПОРТЫ ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Строгие геометрические иконки (inline SVG)
-        const IconCheck = ({ size = 24, className = "" }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><polyline points="20 6 9 17 4 12"></polyline></svg>
-        );
-        const IconSquare = ({ size = 24, className = "" }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><rect x="3" y="3" width="18" height="18"></rect></svg>
-        );
-        const IconPlus = ({ size = 20, className = "" }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        );
-        const IconX = ({ size = 20, className = "" }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        );
+        // --- FIREBASE КОНФИГУРАЦИЯ ---
+        // Если ты будешь хостить это на Github Pages, замени содержимое fallbackConfig на настройки из своего проекта Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyC4BogllyKvfWPpAxDANGkJ-Kvf_CFbCJE",
+            authDomain: "rotracker-1.firebaseapp.com",
+            projectId: "rotracker-1",
+            storageBucket: "rotracker-1.firebasestorage.app",
+            messagingSenderId: "254502711969",
+            appId: "1:254502711969:web:46e3a753a8f4ac7db4b6e0"
+        };
+        
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : fallbackConfig;
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'monolith-standalone';
 
-        // МОНОЛИТНЫЙ КАРКАС
+        // --- ИКОНКИ ---
+        const IconCheck = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><polyline points="20 6 9 17 4 12"></polyline></svg>;
+        const IconSquare = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><rect x="3" y="3" width="18" height="18"></rect></svg>;
+        const IconPlus = ({ size = 20, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+        const IconX = ({ size = 20, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
+
         const BASE_PROTOCOL = [
           { id: '1', time: '05:30', title: 'ПРОБУЖДЕНИЕ И ЗАПУСК', completed: false, subtasks: [ { id: '1-1', title: 'Холодная вода + Вода с солью (электролиты)', completed: false }, { id: '1-2', title: 'Свет в глаза (5-10 мин) — фиксация кортизола', completed: false } ] },
           { id: '2', time: '06:00', title: 'АРХИТЕКТУРА (ФАЗА I)', completed: false, subtasks: [ { id: '2-1', title: 'Глубокая работа без сети (Deep Work)', completed: false }, { id: '2-2', title: 'Создание структурного кода', completed: false } ] },
           { id: '3', time: '07:30', title: 'ИНЪЕКЦИЯ СТИМУЛЯТОРА', completed: false, subtasks: [ { id: '3-1', title: 'Черный кофе (аденозин очищен)', completed: false } ] },
           { id: '4', time: '08:00', title: 'АРХИТЕКТУРА (ФАЗА II)', completed: false, subtasks: [ { id: '4-1', title: 'Работа на пике концентрации', completed: false } ] },
-          { id: '5', time: '10:30', title: 'КИНЕТИКА И ЭНТРОПИЯ', completed: false, subtasks: [ { id: '5-1', title: 'Ходьба (Зона 2 кардио) / Разгрузка', completed: false }, { id: '5-2', title: 'Силовая база с железом (анаболизм)', completed: false } ] },
+          { id: '5', time: '10:30', title: 'КИНЕТИКА И ЭНТРОПИЯ', completed: false, subtasks: [ { id: '5-1', title: 'Ходьба (Зона 2 кардио) / Разгрузка мозга', completed: false }, { id: '5-2', title: 'Силовая база с железом (анаболизм)', completed: false } ] },
           { id: '6', time: '12:30', title: 'МАССИВ (ОТКРЫТИЕ ОКНА)', completed: false, subtasks: [ { id: '6-1', title: 'Тяжелая пища: Животный белок, жиры', completed: false } ] },
           { id: '7', time: '13:30', title: 'АДМИНИСТРИРОВАНИЕ', completed: false, subtasks: [ { id: '7-1', title: 'Лаконичная связь с клиентами', completed: false }, { id: '7-2', title: 'Планирование архитектуры на завтра', completed: false } ] },
           { id: '8', time: '17:00', title: 'СТРУКТУРНАЯ ПАУЗА', completed: false, subtasks: [ { id: '8-1', title: 'Растяжка (мобильность фасций)', completed: false }, { id: '8-2', title: 'Контролируемая пустота', completed: false } ] },
@@ -81,40 +93,103 @@
         ];
 
         function BrutalistSchedule() {
-          const [tasks, setTasks] = useState([]);
+          const [user, setUser] = useState(null);
+          const [isAuthorized, setIsAuthorized] = useState(false);
+          
+          // Состояния логина
+          const [loginId, setLoginId] = useState('');
+          const [loginCode, setLoginCode] = useState('');
+          const [loginError, setLoginError] = useState('');
+
+          // Состояния данных
+          const [tasks, setTasks] = useState(BASE_PROTOCOL);
+          const [isLoading, setIsLoading] = useState(true);
           const [newTaskTime, setNewTaskTime] = useState('');
           const [newTaskTitle, setNewTaskTitle] = useState('');
           const [addingSubtaskId, setAddingSubtaskId] = useState(null);
           const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
-          useEffect(() => {
-            const savedData = localStorage.getItem('monolith-state-v1');
-            const lastDate = localStorage.getItem('monolith-date-v1');
-            const today = new Date().toDateString();
+          const triggerHaptic = () => { if (navigator.vibrate) navigator.vibrate(40); };
 
-            if (lastDate !== today) {
-              setTasks(BASE_PROTOCOL);
-              localStorage.setItem('monolith-date-v1', today);
-              localStorage.setItem('monolith-state-v1', JSON.stringify(BASE_PROTOCOL));
-            } else {
-              setTasks(savedData ? JSON.parse(savedData) : BASE_PROTOCOL);
-            }
+          // 1. Инициализация Firebase Auth
+          useEffect(() => {
+            const initAuth = async () => {
+              try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                  await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                  await signInAnonymously(auth);
+                }
+              } catch (e) {
+                console.error("Auth init error:", e);
+                setLoginError("Сбой подключения к узлу");
+              }
+            };
+            initAuth();
+
+            const unsubscribe = onAuthStateChanged(auth, setUser);
+            return () => unsubscribe();
           }, []);
 
+          // 2. Слушатель Firestore (Синхронизация в реальном времени)
           useEffect(() => {
-            if (tasks.length > 0) {
-              localStorage.setItem('monolith-state-v1', JSON.stringify(tasks));
-            }
-          }, [tasks]);
+            if (!user || !isAuthorized) return;
 
-          // Используем вибрацию на Android при выполнении задачи
-          const triggerHaptic = () => {
-            if (navigator.vibrate) navigator.vibrate(50);
+            // Ссылка на единый документ пользователя MD в публичной коллекции
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedules', 'MD_PROTOCOL');
+
+            const unsubscribe = onSnapshot(docRef, (snapshot) => {
+              const today = new Date().toDateString();
+              
+              if (snapshot.exists()) {
+                const data = snapshot.data();
+                if (data.lastDate !== today) {
+                  // Наступил новый день - жесткий сброс
+                  setTasks(BASE_PROTOCOL);
+                  setDoc(docRef, { tasks: BASE_PROTOCOL, lastDate: today }, { merge: true });
+                } else {
+                  // Актуальные данные, обновляем интерфейс
+                  setTasks(data.tasks);
+                }
+              } else {
+                // Документ не существует (первый вход)
+                setTasks(BASE_PROTOCOL);
+                setDoc(docRef, { tasks: BASE_PROTOCOL, lastDate: today });
+              }
+              setIsLoading(false);
+            }, (error) => {
+              console.error("Firestore error:", error);
+              setLoginError("Ошибка синхронизации");
+            });
+
+            return () => unsubscribe();
+          }, [user, isAuthorized]);
+
+          // Функция для обновления состояния и немедленной отправки в облако
+          const updateCloudTasks = (newTasks) => {
+            setTasks(newTasks); // Оптимистичное обновление UI
+            if (user && isAuthorized) {
+              const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedules', 'MD_PROTOCOL');
+              setDoc(docRef, { tasks: newTasks, lastDate: new Date().toDateString() }, { merge: true });
+            }
           };
 
+          const handleAuth = (e) => {
+            e.preventDefault();
+            triggerHaptic();
+            if (loginId === 'MD' && loginCode === '0000') {
+              setIsAuthorized(true);
+              setLoginError('');
+            } else {
+              setLoginError('ДОСТУП ЗАПРЕЩЕН');
+              setLoginCode('');
+            }
+          };
+
+          // --- ЛОГИКА ИНТЕРФЕЙСА ---
           const toggleTask = (taskId) => {
             triggerHaptic();
-            setTasks(tasks.map(t => {
+            updateCloudTasks(tasks.map(t => {
               if (t.id === taskId) {
                 const isNowCompleted = !t.completed;
                 return { ...t, completed: isNowCompleted, subtasks: t.subtasks.map(st => ({ ...st, completed: isNowCompleted })) };
@@ -125,7 +200,7 @@
 
           const toggleSubtask = (taskId, subtaskId) => {
             triggerHaptic();
-            setTasks(tasks.map(t => {
+            updateCloudTasks(tasks.map(t => {
               if (t.id === taskId) {
                 return { ...t, subtasks: t.subtasks.map(st => st.id === subtaskId ? { ...st, completed: !st.completed } : st ) };
               }
@@ -146,16 +221,16 @@
               subtasks: []
             };
             const updatedTasks = [...tasks, newTask].sort((a, b) => a.time.localeCompare(b.time));
-            setTasks(updatedTasks);
+            updateCloudTasks(updatedTasks);
             setNewTaskTime('');
             setNewTaskTitle('');
-            // Скрыть клавиатуру на мобильном
-            document.activeElement.blur();
+            if(document.activeElement) document.activeElement.blur();
           };
 
-          const deleteTask = (taskId) => {
+          const deleteTask = (taskId, e) => {
+            e.stopPropagation();
             triggerHaptic();
-            setTasks(tasks.filter(t => t.id !== taskId));
+            updateCloudTasks(tasks.filter(t => t.id !== taskId));
           };
 
           const addSubtask = (taskId, e) => {
@@ -164,7 +239,7 @@
               setAddingSubtaskId(null);
               return;
             }
-            setTasks(tasks.map(t => {
+            updateCloudTasks(tasks.map(t => {
               if (t.id === taskId) {
                 return { ...t, subtasks: [...t.subtasks, { id: 'custom-sub-' + Date.now().toString(), title: newSubtaskTitle.trim(), completed: false }] };
               }
@@ -174,11 +249,60 @@
             setAddingSubtaskId(null);
           };
 
+          const deleteSubtask = (taskId, subtaskId, e) => {
+            e.stopPropagation();
+            triggerHaptic();
+            updateCloudTasks(tasks.map(t => t.id === taskId ? { ...t, subtasks: t.subtasks.filter(st => st.id !== subtaskId) } : t));
+          };
+
+          // --- ЭКРАН АВТОРИЗАЦИИ ---
+          if (!isAuthorized) {
+            return (
+              <div className="min-h-screen bg-black flex items-center justify-center p-4 font-mono">
+                <div className="w-full max-w-sm border-2 border-neutral-900 p-8 bg-[#050505]">
+                  <h1 className="text-3xl font-bold tracking-widest text-neutral-300 uppercase mb-8 border-b-2 border-neutral-900 pb-4">
+                    Идентификация
+                  </h1>
+                  <form onSubmit={handleAuth} className="space-y-6">
+                    <div>
+                      <label className="block text-xs uppercase text-neutral-600 mb-2 tracking-widest">Имя узла</label>
+                      <input 
+                        type="text" 
+                        value={loginId} 
+                        onChange={e => setLoginId(e.target.value)}
+                        className="w-full bg-black border border-neutral-800 p-3 text-neutral-300 focus:border-neutral-500 outline-none uppercase tracking-widest"
+                        placeholder="ID"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase text-neutral-600 mb-2 tracking-widest">Код доступа</label>
+                      <input 
+                        type="password" 
+                        value={loginCode} 
+                        onChange={e => setLoginCode(e.target.value)}
+                        className="w-full bg-black border border-neutral-800 p-3 text-neutral-300 focus:border-neutral-500 outline-none tracking-widest"
+                        placeholder="****"
+                      />
+                    </div>
+                    {loginError && <div className="text-red-900 text-xs uppercase tracking-widest font-bold">{loginError}</div>}
+                    <button type="submit" className="w-full bg-neutral-900 text-neutral-400 hover:text-black hover:bg-neutral-300 active:bg-white p-4 uppercase tracking-widest font-bold transition-colors mt-4">
+                      Инициировать
+                    </button>
+                  </form>
+                </div>
+              </div>
+            );
+          }
+
+          if (isLoading) {
+             return <div className="min-h-screen bg-black flex items-center justify-center font-mono text-neutral-700 uppercase tracking-widest">Синхронизация с узлом...</div>;
+          }
+
+          // --- ОСНОВНОЙ ИНТЕРФЕЙС ---
           return (
-            <div className="min-h-screen bg-black text-[#e5e5e5] font-mono p-4 sm:p-8 safe-pb">
+            <div className="min-h-screen bg-black text-[#e5e5e5] font-mono p-4 sm:p-8 safe-pb selection:bg-neutral-800">
               <div className="max-w-4xl mx-auto">
                 
-                {/* Заголовок */}
                 <header className="mb-10 sm:mb-12 border-b-2 border-neutral-900 pb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                   <div>
                     <h1 className="text-4xl sm:text-6xl font-bold tracking-tighter uppercase text-neutral-200">
@@ -189,59 +313,59 @@
                     </p>
                   </div>
                   <div className="text-[10px] sm:text-xs text-neutral-600 uppercase tracking-widest md:text-right border-l-2 md:border-l-0 md:border-r-2 border-neutral-900 pl-3 md:pl-0 md:pr-3">
-                    Ежедневный сброс<br/>
+                    Узел: {loginId} [Синхронизировано]<br/>
                     Энтропия подавлена
                   </div>
                 </header>
 
-                {/* Список задач */}
                 <div className="space-y-3 sm:space-y-4">
                   {tasks.map((task) => (
-                    <div key={task.id} className={`border border-neutral-900 bg-[#050505] p-4 sm:p-5 transition-all duration-300 ${task.completed ? 'opacity-30 bg-black grayscale' : ''} ${task.isEphemeral ? 'border-l-4 border-l-neutral-700' : ''}`}>
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between group gap-4 sm:gap-0">
+                    <div key={task.id} className={`task-group border border-neutral-900 bg-[#050505] p-4 sm:p-5 transition-all duration-300 ${task.completed ? 'opacity-30 bg-black grayscale' : 'hover:border-neutral-700'} ${task.isEphemeral ? 'border-l-4 border-l-neutral-700' : ''}`}>
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 sm:gap-0">
                         
-                        {/* Левая часть: Чекбокс, Время, Название */}
-                        <div className="flex items-start gap-4 flex-1 cursor-pointer" onClick={() => toggleTask(task.id)}>
-                          <button className="mt-0.5 sm:mt-1 flex-shrink-0 text-neutral-600 active:text-white transition-colors">
+                        <div className="flex items-start gap-3 sm:gap-4 flex-1 cursor-pointer" onClick={() => toggleTask(task.id)}>
+                          <button className="mt-0.5 sm:mt-1 flex-shrink-0 text-neutral-600 active:text-white sm:hover:text-white transition-colors">
                             {task.completed ? <IconCheck size={24} className="text-neutral-400" /> : <IconSquare size={24} />}
                           </button>
-                          <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-6 flex-1">
-                            <span className="text-neutral-600 font-bold text-lg sm:w-16">{task.time}</span>
-                            <span className={`font-bold text-lg sm:text-xl tracking-tight leading-tight uppercase ${task.completed ? 'line-through text-neutral-600' : 'text-neutral-200'}`}>{task.title}</span>
+                          
+                          <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-6 flex-1 pr-2">
+                            <span className="text-neutral-600 font-bold text-lg sm:w-16 flex-shrink-0">{task.time}</span>
+                            <span className={`font-bold text-lg sm:text-xl tracking-tight leading-tight uppercase ${task.completed ? 'line-through text-neutral-600' : 'text-neutral-200'}`}>
+                              {task.title}
+                            </span>
                           </div>
                         </div>
                         
-                        {/* Правая часть: Управление (Всегда видно на мобилках) */}
-                        <div className="flex gap-4 sm:gap-2 ml-11 sm:ml-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => setAddingSubtaskId(task.id)} className="text-neutral-600 active:text-white sm:hover:text-white p-2 border border-neutral-900 sm:border-transparent flex items-center justify-center" title="Детализировать">
+                        <div className="flex gap-3 sm:gap-2 ml-10 sm:ml-0 self-start">
+                          <button onClick={(e) => { e.stopPropagation(); setAddingSubtaskId(task.id); }} className="control-btn control-btn-mobile-border text-neutral-500 active:text-white sm:hover:text-white p-2 border sm:border-transparent flex items-center justify-center transition-colors" title="Детализировать">
                             <IconPlus size={20} />
                           </button>
-                          <button onClick={() => deleteTask(task.id)} className="text-neutral-600 active:text-red-800 sm:hover:text-red-800 p-2 border border-neutral-900 sm:border-transparent flex items-center justify-center" title="Уничтожить">
+                          <button onClick={(e) => deleteTask(task.id, e)} className="control-btn control-btn-mobile-border text-neutral-500 active:text-red-800 sm:hover:text-red-800 p-2 border sm:border-transparent flex items-center justify-center transition-colors" title="Уничтожить">
                             <IconX size={20} />
                           </button>
                         </div>
                       </div>
 
-                      {/* Форма подзадачи */}
                       {addingSubtaskId === task.id && (
-                        <form onSubmit={(e) => addSubtask(task.id, e)} className="mt-4 ml-11 sm:ml-20 flex gap-2">
+                        <form onSubmit={(e) => addSubtask(task.id, e)} className="mt-4 ml-10 sm:ml-20 flex gap-2">
                           <input autoFocus type="text" value={newSubtaskTitle} onChange={(e) => setNewSubtaskTitle(e.target.value)} onBlur={() => { if(!newSubtaskTitle.trim()) setAddingSubtaskId(null); }} placeholder="Параметр..." className="bg-transparent border-b border-neutral-800 text-base sm:text-sm focus:border-neutral-500 outline-none px-1 py-2 flex-1 text-neutral-400" />
                           <button type="submit" className="text-xs uppercase tracking-widest text-neutral-500 active:text-white border border-neutral-800 px-4 py-2">Ввод</button>
                         </form>
                       )}
 
-                      {/* Список подзадач */}
                       {task.subtasks.length > 0 && (
-                        <div className="mt-4 ml-11 sm:ml-20 space-y-4 sm:space-y-3 border-l-2 border-neutral-900 pl-4">
+                        <div className="mt-4 ml-10 sm:ml-20 space-y-4 sm:space-y-3 border-l-2 border-neutral-900 pl-4">
                           {task.subtasks.map((subtask) => (
-                            <div key={subtask.id} className="flex items-start justify-between group/sub gap-2">
-                              <div className="flex items-start gap-3 cursor-pointer flex-1" onClick={() => toggleSubtask(task.id, subtask.id)}>
+                            <div key={subtask.id} className="task-group flex items-start justify-between gap-2">
+                              <div className="flex items-start gap-3 cursor-pointer flex-1" onClick={(e) => { e.stopPropagation(); toggleSubtask(task.id, subtask.id); }}>
                                 <button className="mt-0.5 text-neutral-700 active:text-neutral-400 transition-colors">
                                   {subtask.completed ? <IconCheck size={18} className="text-neutral-600" /> : <IconSquare size={18} />}
                                 </button>
-                                <span className={`text-sm sm:text-base leading-snug tracking-wide ${subtask.completed ? 'line-through text-neutral-700' : 'text-neutral-400'}`}>{subtask.title}</span>
+                                <span className={`text-sm sm:text-base leading-snug tracking-wide ${subtask.completed ? 'line-through text-neutral-700' : 'text-neutral-400'}`}>
+                                  {subtask.title}
+                                </span>
                               </div>
-                              <button onClick={() => deleteSubtask(task.id, subtask.id)} className="text-neutral-700 active:text-red-900 sm:hover:text-red-900 opacity-100 sm:opacity-0 group-hover/sub:opacity-100 p-1 sm:p-2 transition-opacity">
+                              <button onClick={(e) => deleteSubtask(task.id, subtask.id, e)} className="control-btn control-btn-mobile-border text-neutral-700 active:text-red-900 sm:hover:text-red-900 p-1 sm:p-2 border sm:border-transparent transition-colors">
                                 <IconX size={16} />
                               </button>
                             </div>
@@ -252,13 +376,16 @@
                   ))}
                 </div>
 
-                {/* Добавление временной задачи */}
                 <div className="mt-16 sm:mt-24 pt-8 border-t-2 border-neutral-900">
-                  <h2 className="text-neutral-700 uppercase text-[10px] sm:text-xs font-bold tracking-widest mb-6">Добавить аномалию <span className="text-neutral-800 lowercase font-normal">(исчезнет в 00:00)</span></h2>
+                  <h2 className="text-neutral-700 uppercase text-[10px] sm:text-xs font-bold tracking-widest mb-6">
+                    Добавить аномалию <span className="text-neutral-800 lowercase font-normal">(исчезнет в 00:00)</span>
+                  </h2>
                   <form onSubmit={addTask} className="flex flex-col gap-3 sm:flex-row sm:gap-4">
                     <input type="text" value={newTaskTime} onChange={(e) => setNewTaskTime(e.target.value)} placeholder="00:00" className="bg-[#030303] border border-neutral-900 text-neutral-300 focus:border-neutral-600 outline-none px-4 py-4 w-full sm:w-28 placeholder-neutral-800 text-center text-lg sm:text-xl rounded-none" />
                     <input type="text" value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder="СУЩНОСТЬ" className="bg-[#030303] border border-neutral-900 text-neutral-300 focus:border-neutral-600 outline-none px-4 py-4 flex-1 placeholder-neutral-800 uppercase tracking-widest rounded-none text-base sm:text-lg" />
-                    <button type="submit" className="bg-neutral-900 text-neutral-400 active:bg-neutral-700 sm:hover:bg-neutral-200 sm:hover:text-black transition-colors px-8 py-5 font-bold uppercase tracking-widest mt-2 sm:mt-0">Интегрировать</button>
+                    <button type="submit" className="bg-neutral-900 text-neutral-400 active:bg-neutral-700 sm:hover:bg-neutral-200 sm:hover:text-black transition-colors px-8 py-5 font-bold uppercase tracking-widest mt-2 sm:mt-0 rounded-none">
+                      Интегрировать
+                    </button>
                   </form>
                 </div>
               </div>
