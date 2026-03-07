@@ -257,7 +257,9 @@ export default function BrutalistSchedule() {
                   </button>
                   <div className="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-6 flex-1">
                     <span className="text-neutral-500 font-bold w-14 text-lg">{task.time}</span>
-                    <span className={`font-bold text-lg sm:text-xl tracking-wide ${task.completed ? 'line-through text-neutral-600' : 'text-neutral-200'}`}>{task.title}</span>
+                    <span className={`font-bold text-lg sm:text-xl tracking-wide ${task.completed ? 'line-through text-neutral-600' : 'text-neutral-200'}`}>
+                      {task.title}
+                    </span>
                   </div>
                 </div>
                 
@@ -296,7 +298,9 @@ export default function BrutalistSchedule() {
                         <button className="text-neutral-600 hover:text-neutral-300 transition-colors">
                           {subtask.completed ? <Check size={16} className="text-neutral-600" /> : <Square size={16} />}
                         </button>
-                        <span className={`text-sm tracking-wide ${subtask.completed ? 'line-through text-neutral-600' : 'text-neutral-400'}`}>{subtask.title}</span>
+                        <span className={`text-sm tracking-wide ${subtask.completed ? 'line-through text-neutral-600' : 'text-neutral-400'}`}>
+                          {subtask.title}
+                        </span>
                       </div>
                       <button onClick={() => deleteSubtask(task.id, subtask.id)} className="text-neutral-700 hover:text-red-900 opacity-0 group-hover/sub:opacity-100 p-1 transition-opacity">
                         <X size={14} />
