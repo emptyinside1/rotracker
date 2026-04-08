@@ -2,291 +2,412 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <!-- Строгие настройки viewport: запрет зума, поддержка челок -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
-    <!-- Настройки PWA (Progressive Web App) -->
     <meta name="theme-color" content="#000000">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>МОНОЛИТ</title>
+    <title>МОНОЛИТ | TTY</title>
     
-    <!-- Связь с манифестом и иконкой для установки на телефон -->
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon.png">
     
-    <!-- Подключение React -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Подключение Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Подключение Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
-        /* Брутальные базовые стили */
         body { 
             background-color: #000000; 
             color: #e5e5e5; 
             overscroll-behavior-y: none;
             -webkit-tap-highlight-color: transparent;
-            user-select: none; 
-            -webkit-user-select: none;
         }
         
-        input { 
-            user-select: auto; 
-            -webkit-user-select: auto;
-        }
+        * { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important; }
 
-        /* Минималистичный скроллбар */
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: #000000; }
         ::-webkit-scrollbar-thumb { background: #333333; }
         
         .safe-pb { padding-bottom: env(safe-area-inset-bottom, 24px); }
+        .hidden-file-input { display: none; }
 
-        /* Логика кнопок для ПК (мышь) */
-        @media (hover: hover) and (pointer: fine) {
-            .control-btn { opacity: 0; transition: opacity 0.2s ease-in-out; }
-            .task-group:hover .control-btn { opacity: 1; }
-            .control-btn-mobile-border { border-color: transparent !important; }
+        .terminal-caret {
+            display: inline-block;
+            width: 8px;
+            height: 1.2em;
+            background-color: #e5e5e5;
+            animation: blink 1s step-end infinite;
+            vertical-align: bottom;
         }
-        
-        /* Логика кнопок для смартфонов (тач) */
-        @media (hover: none) and (pointer: coarse) {
-            .control-btn { opacity: 0.5; }
-            .control-btn-mobile-border { border-color: #1a1a1a; }
-        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        input:focus { outline: none; }
+        .cli-input { text-transform: none; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
-        // Строгие SVG иконки
-        const IconCheck = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><polyline points="20 6 9 17 4 12"></polyline></svg>;
-        const IconSquare = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><rect x="3" y="3" width="18" height="18"></rect></svg>;
-        const IconPlus = ({ size = 20, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
-        const IconX = ({ size = 20, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
-
-        // НЕЗЫБЛЕМЫЙ ФУНДАМЕНТ (восстанавливается каждую ночь)
+        // НОВЫЙ БАЗОВЫЙ УСТАВ (4 приема пищи, 1.5ч тренировка)
         const BASE_PROTOCOL = [
-          { id: '1', time: '05:30', title: 'ПРОБУЖДЕНИЕ И ЗАПУСК', completed: false, subtasks: [ { id: '1-1', title: 'Холодная вода + Вода с солью (электролиты)', completed: false }, { id: '1-2', title: 'Свет в глаза (5-10 мин) — фиксация кортизола', completed: false } ] },
-          { id: '2', time: '06:00', title: 'АРХИТЕКТУРА (ФАЗА I)', completed: false, subtasks: [ { id: '2-1', title: 'Глубокая работа без сети (Deep Work)', completed: false }, { id: '2-2', title: 'Создание структурного кода', completed: false } ] },
-          { id: '3', time: '07:30', title: 'ИНЪЕКЦИЯ СТИМУЛЯТОРА', completed: false, subtasks: [ { id: '3-1', title: 'Черный кофе (аденозин очищен)', completed: false } ] },
-          { id: '4', time: '08:00', title: 'АРХИТЕКТУРА (ФАЗА II)', completed: false, subtasks: [ { id: '4-1', title: 'Работа на пике концентрации', completed: false } ] },
-          { id: '5', time: '10:30', title: 'КИНЕТИКА И ЭНТРОПИЯ', completed: false, subtasks: [ { id: '5-1', title: 'Ходьба (Зона 2 кардио) / Разгрузка мозга', completed: false }, { id: '5-2', title: 'Силовая база с железом (анаболизм)', completed: false } ] },
-          { id: '6', time: '12:30', title: 'МАССИВ (ОТКРЫТИЕ ОКНА)', completed: false, subtasks: [ { id: '6-1', title: 'Тяжелая пища: Животный белок, жиры', completed: false } ] },
-          { id: '7', time: '13:30', title: 'АДМИНИСТРИРОВАНИЕ', completed: false, subtasks: [ { id: '7-1', title: 'Лаконичная связь с клиентами', completed: false }, { id: '7-2', title: 'Планирование архитектуры на завтра', completed: false } ] },
-          { id: '8', time: '17:00', title: 'СТРУКТУРНАЯ ПАУЗА', completed: false, subtasks: [ { id: '8-1', title: 'Растяжка (мобильность фасций)', completed: false }, { id: '8-2', title: 'Контролируемая пустота', completed: false } ] },
-          { id: '9', time: '18:30', title: 'ФОРМАТИРОВАНИЕ (ЗАКРЫТИЕ)', completed: false, subtasks: [ { id: '9-1', title: 'Легкий прием пищи (клетчатка)', completed: false } ] },
-          { id: '10', time: '20:00', title: 'ИЗОЛЯЦИЯ (ПАРАСИМПАТИКА)', completed: false, subtasks: [ { id: '10-1', title: 'Отключение светящихся экранов', completed: false }, { id: '10-2', title: 'Чтение физических носителей', completed: false } ] },
+          { id: '1', time: '06:00', title: 'ПРОБУЖДЕНИЕ И ЗАПУСК', completed: false, subtasks: [ { id: '1-1', title: 'Вода, свет в глаза (фиксация кортизола)', completed: false } ] },
+          { id: '2', time: '06:30', title: 'ПЕРВЫЙ БЛОК: ЗАВТРАК', completed: false, subtasks: [ { id: '2-1', title: 'Быстрый белок, долгие углеводы', completed: false }, { id: '2-2', title: 'Черный кофе (стимулятор)', completed: false } ] },
+          { id: '3', time: '07:00', title: 'АРХИТЕКТУРА I: ФУНДАМЕНТ', completed: false, subtasks: [ { id: '3-1', title: 'Deep Work (Сложный код без сети)', completed: false } ] },
+          { id: '4', time: '10:00', title: 'КИНЕТИКА: ТЯЖЕЛАЯ СЕССИЯ', completed: false, subtasks: [ { id: '4-1', title: 'Силовая база (1.5 часа)', completed: false }, { id: '4-2', title: 'Декомпрессия ЦНС', completed: false } ] },
+          { id: '5', time: '12:00', title: 'ВТОРОЙ БЛОК: МАССИВ (ОБЕД)', completed: false, subtasks: [ { id: '5-1', title: 'Восполнение гликогена (рис/гречка, мясо)', completed: false } ] },
+          { id: '6', time: '13:00', title: 'АРХИТЕКТУРА II: СИНТЕЗ', completed: false, subtasks: [ { id: '6-1', title: 'Рефакторинг, текущие задачи', completed: false } ] },
+          { id: '7', time: '16:00', title: 'АДМИНИСТРИРОВАНИЕ / БЫТ', completed: false, subtasks: [ { id: '7-1', title: 'Ответы клиентам', completed: false }, { id: '7-2', title: 'Пакетная заготовка топлива (если день готовки)', completed: false } ] },
+          { id: '8', time: '18:00', title: 'ТРЕТИЙ БЛОК: УЖИН', completed: false, subtasks: [ { id: '8-1', title: 'Умеренные углеводы, белок, клетчатка', completed: false } ] },
+          { id: '9', time: '19:00', title: 'ИЗОЛЯЦИЯ И РАЗВИТИЕ', completed: false, subtasks: [ { id: '9-1', title: 'Отключение сети', completed: false }, { id: '9-2', title: 'Чтение технической/философской литературы', completed: false } ] },
+          { id: '10', time: '21:00', title: 'ЧЕТВЕРТЫЙ БЛОК: СОННИК', completed: false, subtasks: [ { id: '10-1', title: 'Долгий белок (казеин/творог)', completed: false } ] },
           { id: '11', time: '22:00', title: 'ПУСТОТА (СОН)', completed: false, subtasks: [] }
         ];
 
         function BrutalistSchedule() {
           const [tasks, setTasks] = useState([]);
-          const [newTaskTime, setNewTaskTime] = useState('');
-          const [newTaskTitle, setNewTaskTitle] = useState('');
-          const [addingSubtaskId, setAddingSubtaskId] = useState(null);
-          const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+          const [cliInput, setCliInput] = useState('');
+          const [terminalLog, setTerminalLog] = useState('INIT KERNEL V4 (MASS PROTOCOL)... OK');
+          const [showHelp, setShowHelp] = useState(false); // Состояние для man page
+          
+          const terminalInputRef = useRef(null);
+          const fileInputRef = useRef(null);
 
-          // Локальная память и проверка на 00:00
           useEffect(() => {
-            const savedData = localStorage.getItem('monolith-data-local');
-            const lastDate = localStorage.getItem('monolith-date-local');
+            const savedData = localStorage.getItem('monolith-data-tty-v3');
+            const lastDate = localStorage.getItem('monolith-date-tty-v3');
             const today = new Date().toDateString();
 
             if (lastDate !== today) {
               setTasks(BASE_PROTOCOL);
-              localStorage.setItem('monolith-date-local', today);
-              localStorage.setItem('monolith-data-local', JSON.stringify(BASE_PROTOCOL));
+              localStorage.setItem('monolith-date-tty-v3', today);
+              localStorage.setItem('monolith-data-tty-v3', JSON.stringify(BASE_PROTOCOL));
+              logTerminal('CYCLE RESET. MASS PROTOCOL LOADED.');
             } else {
               setTasks(savedData ? JSON.parse(savedData) : BASE_PROTOCOL);
+              logTerminal('LOCAL STATE RESTORED.');
             }
+            
+            const handleKeyDown = (e) => {
+              if (e.key === 'Escape') {
+                setShowHelp(false);
+                return;
+              }
+              if (e.key === '`' || e.key === '~' || e.key === '/') {
+                if (document.activeElement !== terminalInputRef.current) {
+                  e.preventDefault();
+                  terminalInputRef.current.focus();
+                }
+              }
+            };
+            window.addEventListener('keydown', handleKeyDown);
+            return () => window.removeEventListener('keydown', handleKeyDown);
           }, []);
 
-          // Сохранение любого чиха в локальную память
           useEffect(() => {
             if (tasks.length > 0) {
-              localStorage.setItem('monolith-data-local', JSON.stringify(tasks));
+              localStorage.setItem('monolith-data-tty-v3', JSON.stringify(tasks));
             }
           }, [tasks]);
 
-          const triggerHaptic = () => { if (navigator.vibrate) navigator.vibrate(40); };
+          const logTerminal = (msg) => {
+             setTerminalLog(msg);
+             setTimeout(() => setTerminalLog(''), 3000);
+          };
+          
+          const triggerHaptic = () => { if (navigator.vibrate) navigator.vibrate(20); };
 
-          const toggleTask = (taskId) => {
-            triggerHaptic();
-            setTasks(tasks.map(t => {
-              if (t.id === taskId) {
-                const isNowCompleted = !t.completed;
-                return { ...t, completed: isNowCompleted, subtasks: t.subtasks.map(st => ({ ...st, completed: isNowCompleted })) };
-              }
-              return t;
-            }));
+          const getIndexedTasks = () => {
+             return tasks.map((t, i) => {
+                const indexStr = (i + 1).toString().padStart(2, '0');
+                const indexedSubtasks = t.subtasks.map((st, j) => ({
+                    ...st,
+                    displayId: `${indexStr}-${j + 1}`
+                }));
+                return { ...t, displayId: indexStr, subtasks: indexedSubtasks };
+             });
           };
 
-          const toggleSubtask = (taskId, subtaskId) => {
-            triggerHaptic();
-            setTasks(tasks.map(t => {
-              if (t.id === taskId) {
-                return { ...t, subtasks: t.subtasks.map(st => st.id === subtaskId ? { ...st, completed: !st.completed } : st ) };
-              }
-              return t;
-            }));
-          };
+          const indexedTasks = getIndexedTasks();
 
-          const addTask = (e) => {
+          const parseCommand = (e) => {
             e.preventDefault();
-            if (!newTaskTitle.trim()) return;
+            const cmd = cliInput.trim();
+            if (!cmd) return;
             triggerHaptic();
-            const newTask = {
-              id: 'custom-' + Date.now().toString(),
-              time: newTaskTime.trim() || '--:--',
-              title: newTaskTitle.trim().toUpperCase(),
-              completed: false,
-              isEphemeral: true, // Флаг для удаления в полночь
-              subtasks: []
-            };
-            const updatedTasks = [...tasks, newTask].sort((a, b) => a.time.localeCompare(b.time));
-            setTasks(updatedTasks);
-            setNewTaskTime('');
-            setNewTaskTitle('');
-            if(document.activeElement) document.activeElement.blur();
-          };
 
-          const deleteTask = (taskId, e) => {
-            e.stopPropagation();
-            triggerHaptic();
-            setTasks(tasks.filter(t => t.id !== taskId));
-          };
-
-          const addSubtask = (taskId, e) => {
-            e.preventDefault();
-            if (!newSubtaskTitle.trim()) {
-              setAddingSubtaskId(null);
+            if (cmd.toLowerCase() === 'help') {
+              setShowHelp(true);
+              logTerminal('MANUAL OPENED.');
+              setCliInput('');
               return;
             }
-            setTasks(tasks.map(t => {
-              if (t.id === taskId) {
-                return { ...t, subtasks: [...t.subtasks, { id: 'custom-sub-' + Date.now().toString(), title: newSubtaskTitle.trim(), completed: false }] };
+
+            if (cmd.toLowerCase() === 'export') {
+              exportData();
+              setCliInput('');
+              return;
+            }
+
+            if (cmd.toLowerCase() === 'import') {
+              fileInputRef.current.click();
+              setCliInput('');
+              return;
+            }
+
+            const rmMatch = cmd.match(/^rm\s+(\d{1,2})(?:-(\d+))?$/i);
+            if (rmMatch) {
+              const targetTaskIndex = parseInt(rmMatch[1]) - 1;
+              if (targetTaskIndex >= 0 && targetTaskIndex < tasks.length) {
+                  if (rmMatch[2]) {
+                      const subId = rmMatch[2];
+                      setTasks(tasks.map((t, i) => i === targetTaskIndex ? { ...t, subtasks: t.subtasks.filter((_, j) => j !== (parseInt(subId)-1)) } : t));
+                      logTerminal(`SUBPROCESS ${rmMatch[1]}-${rmMatch[2]} TERMINATED.`);
+                  } else {
+                      setTasks(tasks.filter((_, i) => i !== targetTaskIndex));
+                      logTerminal(`PROCESS [${rmMatch[1]}] TERMINATED.`);
+                  }
+              } else {
+                  logTerminal(`ERROR: PID [${rmMatch[1]}] NOT FOUND`);
               }
-              return t;
-            }));
-            setNewSubtaskTitle('');
-            setAddingSubtaskId(null);
-          };
+              setCliInput('');
+              return;
+            }
 
-          const deleteSubtask = (taskId, subtaskId, e) => {
-            e.stopPropagation();
+            const subMatch = cmd.match(/^\+\s*(\d{1,2})\s+(.+)$/);
+            if (subMatch) {
+              const targetTaskIndex = parseInt(subMatch[1]) - 1;
+              let rawText = subMatch[2].trim();
+              const subText = rawText.charAt(0).toUpperCase() + rawText.slice(1);
+              
+              if (targetTaskIndex >= 0 && targetTaskIndex < tasks.length) {
+                  setTasks(tasks.map((t, i) => {
+                      if (i === targetTaskIndex) {
+                          return { ...t, subtasks: [...t.subtasks, { id: 'sub-'+Date.now(), title: subText, completed: false }] };
+                      }
+                      return t;
+                  }));
+                  logTerminal(`CHILD PROCESS ATTACHED TO [${subMatch[1]}].`);
+              } else {
+                  logTerminal(`ERROR: PARENT PID [${subMatch[1]}] NOT FOUND`);
+              }
+              setCliInput('');
+              return;
+            }
+
+            const toggleMatch = cmd.match(/^(\d{1,2})(?:-(\d+))?$/);
+            if (toggleMatch) {
+                const targetTaskIndex = parseInt(toggleMatch[1]) - 1;
+                if (targetTaskIndex >= 0 && targetTaskIndex < tasks.length) {
+                    if (toggleMatch[2]) {
+                        const targetSubIndex = parseInt(toggleMatch[2]) - 1;
+                        setTasks(tasks.map((t, i) => i === targetTaskIndex ? { ...t, subtasks: t.subtasks.map((st, j) => j === targetSubIndex ? { ...st, completed: !st.completed } : st) } : t));
+                        logTerminal(`STATE OF ${toggleMatch[1]}-${toggleMatch[2]} INVERTED.`);
+                    } else {
+                        setTasks(tasks.map((t, i) => i === targetTaskIndex ? { ...t, completed: !t.completed, subtasks: t.subtasks.map(st => ({...st, completed: !t.completed})) } : t));
+                        logTerminal(`STATE OF [${toggleMatch[1]}] INVERTED.`);
+                    }
+                } else {
+                    logTerminal(`ERROR: PID [${toggleMatch[1]}] NOT FOUND`);
+                }
+                setCliInput('');
+                return;
+            }
+
+            const addMatch = cmd.match(/^(\d{2}:\d{2})\s+(.+)$/);
+            if (addMatch) {
+                const time = addMatch[1];
+                const title = addMatch[2].toUpperCase();
+                const newTask = {
+                    id: 'custom-' + Date.now().toString(),
+                    time: time,
+                    title: title,
+                    completed: false,
+                    isEphemeral: true,
+                    subtasks: []
+                };
+                const updatedTasks = [...tasks, newTask].sort((a, b) => a.time.localeCompare(b.time));
+                setTasks(updatedTasks);
+                logTerminal(`NEW PROCESS DEPLOYED AT ${time}.`);
+                setCliInput('');
+                return;
+            }
+
+            logTerminal('COMMAND UNRECOGNIZED. SYNTAX: [TIME TEXT] | [+ ID TEXT] | [RM ID] | [ID]');
+            setCliInput('');
+        };
+
+        const handleManualToggle = (taskId, isSubtask = false, subtaskId = null) => {
             triggerHaptic();
-            setTasks(tasks.map(t => t.id === taskId ? { ...t, subtasks: t.subtasks.filter(st => st.id !== subtaskId) } : t));
-          };
+            if (!isSubtask) {
+                setTasks(tasks.map(t => t.id === taskId ? { ...t, completed: !t.completed, subtasks: t.subtasks.map(st => ({ ...st, completed: !t.completed })) } : t));
+            } else {
+                setTasks(tasks.map(t => t.id === taskId ? { ...t, subtasks: t.subtasks.map(st => st.id === subtaskId ? { ...st, completed: !st.completed } : st ) } : t));
+            }
+        };
 
-          return (
-            <div className="min-h-screen bg-black text-[#e5e5e5] font-mono p-4 sm:p-8 safe-pb selection:bg-neutral-800">
-              <div className="max-w-4xl mx-auto">
-                
-                {/* Хедер */}
-                <header className="mb-10 sm:mb-12 border-b-2 border-neutral-900 pb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                  <div>
-                    <h1 className="text-4xl sm:text-6xl font-bold tracking-tighter uppercase text-neutral-200">
-                      МОНОЛИТ
-                    </h1>
-                    <p className="text-neutral-500 mt-2 text-xs sm:text-sm uppercase tracking-widest">
-                      {new Date().toLocaleDateString('ru-RU', { weekday: 'long', month: 'long', day: 'numeric' })}
-                    </p>
-                  </div>
-                  <div className="text-[10px] sm:text-xs text-neutral-600 uppercase tracking-widest md:text-right border-l-2 md:border-l-0 md:border-r-2 border-neutral-900 pl-3 md:pl-0 md:pr-3">
-                    Изолированный узел<br/>
-                    Ежедневный сброс 00:00
-                  </div>
-                </header>
+        const exportData = () => {
+            const dataStr = JSON.stringify(tasks, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `tty_dump_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            logTerminal('DUMP EXTRACTED TO LOCAL FILESYSTEM.');
+        };
 
-                {/* Основной массив задач */}
-                <div className="space-y-3 sm:space-y-4">
-                  {tasks.map((task) => (
-                    <div key={task.id} className={`task-group border border-neutral-900 bg-[#050505] p-4 sm:p-5 transition-all duration-300 ${task.completed ? 'opacity-30 bg-black grayscale' : 'hover:border-neutral-700'} ${task.isEphemeral ? 'border-l-4 border-l-neutral-700' : ''}`}>
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 sm:gap-0">
-                        
-                        <div className="flex items-start gap-3 sm:gap-4 flex-1 cursor-pointer" onClick={() => toggleTask(task.id)}>
-                          <button className="mt-0.5 sm:mt-1 flex-shrink-0 text-neutral-600 active:text-white sm:hover:text-white transition-colors">
-                            {task.completed ? <IconCheck size={24} className="text-neutral-400" /> : <IconSquare size={24} />}
-                          </button>
-                          
-                          <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-6 flex-1 pr-2">
-                            <span className="text-neutral-600 font-bold text-lg sm:w-16 flex-shrink-0">{task.time}</span>
-                            <span className={`font-bold text-lg sm:text-xl tracking-tight leading-tight uppercase ${task.completed ? 'line-through text-neutral-600' : 'text-neutral-200'}`}>
-                              {task.title}
+        const importData = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              try {
+                const importedTasks = JSON.parse(e.target.result);
+                if (Array.isArray(importedTasks)) {
+                  setTasks(importedTasks);
+                  localStorage.setItem('monolith-date-tty-v3', new Date().toDateString());
+                  logTerminal('DUMP SUCCESSFULLY INTEGRATED.');
+                }
+              } catch (error) {
+                  logTerminal('FATAL: CORRUPTED DUMP FILE.');
+              }
+            };
+            reader.readAsText(file);
+            event.target.value = null; 
+        };
+
+        return (
+            <div className="h-screen flex flex-col bg-black text-[#e5e5e5] font-mono safe-pb overflow-hidden">
+              
+              <header className="p-4 sm:p-6 border-b border-neutral-800 flex justify-between items-end flex-shrink-0 bg-black z-10">
+                <div>
+                  <h1 className="text-2xl sm:text-4xl font-bold tracking-tighter">MONOLITH<span className="text-neutral-700">_TTY</span></h1>
+                  <p className="text-neutral-600 mt-1 text-[10px] sm:text-xs">KERNEL DATE: {new Date().toLocaleDateString('ru-RU')}</p>
+                </div>
+                <div className="text-right text-[10px] sm:text-xs text-neutral-500">
+                  <p>USER: ROOT</p>
+                  <p>UPTIME: ACTIVE</p>
+                </div>
+              </header>
+
+              <div className="flex-grow overflow-y-auto p-4 sm:p-6 space-y-2 pb-32">
+                {indexedTasks.map((task) => (
+                  <div key={task.id} className={`group border-l-2 ${task.isEphemeral ? 'border-neutral-600' : 'border-neutral-900'} pl-3 py-1 ${task.completed ? 'opacity-40 grayscale' : ''}`}>
+                    
+                    <div className="flex items-start gap-3 sm:gap-6 cursor-pointer" onClick={() => handleManualToggle(task.id)}>
+                      <span className={`text-xs sm:text-sm mt-0.5 ${task.completed ? 'text-neutral-700' : 'text-neutral-500 font-bold'}`}>
+                        [{task.displayId}]
+                      </span>
+                      <span className={`text-xs sm:text-sm mt-0.5 w-10 sm:w-12 text-neutral-600 ${task.completed ? 'line-through' : ''}`}>
+                        {task.time}
+                      </span>
+                      <span className={`text-sm sm:text-base tracking-wide flex-1 ${task.completed ? 'line-through text-neutral-600' : 'text-neutral-200'}`}>
+                        {task.completed ? '✓ ' : ''}{task.title}
+                      </span>
+                    </div>
+
+                    {task.subtasks.length > 0 && (
+                      <div className="mt-1 space-y-1 ml-9 sm:ml-16 border-l border-neutral-900 pl-3">
+                        {task.subtasks.map((subtask) => (
+                          <div key={subtask.id} className="flex items-start gap-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); handleManualToggle(task.id, true, subtask.id); }}>
+                            <span className={`text-[10px] sm:text-xs mt-0.5 ${subtask.completed ? 'text-neutral-700' : 'text-neutral-600'}`}>
+                              [{subtask.displayId}]
+                            </span>
+                            <span className={`text-xs sm:text-sm tracking-wide ${subtask.completed ? 'line-through text-neutral-700' : 'text-neutral-400'}`}>
+                              {subtask.completed ? '✓ ' : '– '}{subtask.title}
                             </span>
                           </div>
-                        </div>
-                        
-                        <div className="flex gap-3 sm:gap-2 ml-10 sm:ml-0 self-start">
-                          <button onClick={(e) => { e.stopPropagation(); setAddingSubtaskId(task.id); }} className="control-btn control-btn-mobile-border text-neutral-500 active:text-white sm:hover:text-white p-2 border sm:border-transparent flex items-center justify-center transition-colors" title="Детализировать">
-                            <IconPlus size={20} />
-                          </button>
-                          <button onClick={(e) => deleteTask(task.id, e)} className="control-btn control-btn-mobile-border text-neutral-500 active:text-red-800 sm:hover:text-red-800 p-2 border sm:border-transparent flex items-center justify-center transition-colors" title="Уничтожить">
-                            <IconX size={20} />
-                          </button>
-                        </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="fixed bottom-0 left-0 right-0 border-t border-neutral-800 bg-[#050505] p-4 sm:p-6 pb-safe safe-pb z-20">
+                <div className="text-[10px] sm:text-xs text-neutral-600 mb-2 h-4 uppercase tracking-widest font-bold">
+                    {terminalLog || "AWAITING COMMAND..."}
+                </div>
+                
+                <form onSubmit={parseCommand} className="flex items-center gap-3">
+                    <span className="text-neutral-500 font-bold text-lg">{">"}</span>
+                    <input 
+                        ref={terminalInputRef}
+                        type="text" 
+                        value={cliInput}
+                        onChange={(e) => setCliInput(e.target.value)}
+                        className="cli-input bg-transparent border-none text-neutral-200 w-full text-base sm:text-lg focus:outline-none placeholder-neutral-800"
+                        placeholder="[~] TO FOCUS. TYPE 'HELP' IMPLICITLY."
+                        autoComplete="off"
+                        autoCorrect="off"
+                        spellCheck="false"
+                    />
+                    <div className="terminal-caret hidden sm:block"></div>
+                </form>
+              </div>
+
+              <input type="file" accept=".json" ref={fileInputRef} onChange={importData} className="hidden-file-input" />
+              
+              {/* ОВЕРЛЕЙ ДОКУМЕНТАЦИИ (MAN PAGE) */}
+              {showHelp && (
+                <div 
+                  className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex flex-col p-6 sm:p-12 overflow-y-auto cursor-pointer"
+                  onClick={() => setShowHelp(false)}
+                >
+                  <div className="max-w-4xl mx-auto w-full flex-grow flex flex-col justify-center cursor-default" onClick={e => e.stopPropagation()}>
+                    <div className="border-b-2 border-neutral-800 pb-4 mb-8 flex justify-between items-end">
+                      <h2 className="text-2xl sm:text-4xl font-bold text-neutral-300 tracking-tighter uppercase">Monolith_Manual</h2>
+                      <span className="text-neutral-600 text-xs tracking-widest">[TTY DOCS]</span>
+                    </div>
+                    
+                    <div className="space-y-8 text-neutral-400 font-mono text-sm sm:text-base">
+                      
+                      <div className="space-y-2">
+                        <h3 className="text-neutral-500 font-bold tracking-widest uppercase mb-4 text-xs">Развертывание процессов</h3>
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-6"><span className="text-neutral-200 font-bold min-w-[120px]">14:30 ЗАДАЧА</span><span>Создать новый корневой блок (переводится в UPPERCASE).</span></div>
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-6"><span className="text-neutral-200 font-bold min-w-[120px]">+ 02 деталь</span><span>Прикрепить подзадачу к блоку [02]. Первая буква заглавная.</span></div>
                       </div>
 
-                      {/* Инпут подзадачи */}
-                      {addingSubtaskId === task.id && (
-                        <form onSubmit={(e) => addSubtask(task.id, e)} className="mt-4 ml-10 sm:ml-20 flex gap-2">
-                          <input autoFocus type="text" value={newSubtaskTitle} onChange={(e) => setNewSubtaskTitle(e.target.value)} onBlur={() => { if(!newSubtaskTitle.trim()) setAddingSubtaskId(null); }} placeholder="Параметр..." className="bg-transparent border-b border-neutral-800 text-base sm:text-sm focus:border-neutral-500 outline-none px-1 py-2 flex-1 text-neutral-400" />
-                          <button type="submit" className="text-xs uppercase tracking-widest text-neutral-500 active:text-white border border-neutral-800 px-4 py-2">Ввод</button>
-                        </form>
-                      )}
+                      <div className="space-y-2 border-t border-neutral-900 pt-6">
+                        <h3 className="text-neutral-500 font-bold tracking-widest uppercase mb-4 text-xs">Управление состоянием</h3>
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-6"><span className="text-neutral-200 font-bold min-w-[120px]">02</span><span>Изменить статус выполнения блока [02] (и всех его подзадач).</span></div>
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-6"><span className="text-neutral-200 font-bold min-w-[120px]">02-1</span><span>Изменить статус выполнения конкретной подзадачи [02-1].</span></div>
+                      </div>
 
-                      {/* Подзадачи */}
-                      {task.subtasks.length > 0 && (
-                        <div className="mt-4 ml-10 sm:ml-20 space-y-4 sm:space-y-3 border-l-2 border-neutral-900 pl-4">
-                          {task.subtasks.map((subtask) => (
-                            <div key={subtask.id} className="task-group flex items-start justify-between gap-2">
-                              <div className="flex items-start gap-3 cursor-pointer flex-1" onClick={(e) => { e.stopPropagation(); toggleSubtask(task.id, subtask.id); }}>
-                                <button className="mt-0.5 text-neutral-700 active:text-neutral-400 transition-colors">
-                                  {subtask.completed ? <IconCheck size={18} className="text-neutral-600" /> : <IconSquare size={18} />}
-                                </button>
-                                <span className={`text-sm sm:text-base leading-snug tracking-wide ${subtask.completed ? 'line-through text-neutral-700' : 'text-neutral-400'}`}>
-                                  {subtask.title}
-                                </span>
-                              </div>
-                              <button onClick={(e) => deleteSubtask(task.id, subtask.id, e)} className="control-btn control-btn-mobile-border text-neutral-700 active:text-red-900 sm:hover:text-red-900 p-1 sm:p-2 border sm:border-transparent transition-colors">
-                                <IconX size={16} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      <div className="space-y-2 border-t border-neutral-900 pt-6">
+                        <h3 className="text-neutral-500 font-bold tracking-widest uppercase mb-4 text-xs">Деструктивные команды</h3>
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-6"><span className="text-neutral-200 font-bold min-w-[120px]">rm 02</span><span>Уничтожить блок [02].</span></div>
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-6"><span className="text-neutral-200 font-bold min-w-[120px]">rm 02-1</span><span>Уничтожить подзадачу [02-1].</span></div>
+                      </div>
+
+                      <div className="space-y-2 border-t border-neutral-900 pt-6">
+                        <h3 className="text-neutral-500 font-bold tracking-widest uppercase mb-4 text-xs">Системные дампы</h3>
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-6"><span className="text-neutral-200 font-bold min-w-[120px]">export</span><span>Извлечь текущее состояние в .json файл.</span></div>
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-6"><span className="text-neutral-200 font-bold min-w-[120px]">import</span><span>Интегрировать внешний .json файл.</span></div>
+                      </div>
+
                     </div>
-                  ))}
+                    
+                    <div className="mt-16 text-center text-neutral-600 text-[10px] uppercase tracking-[0.2em] animate-pulse cursor-pointer" onClick={() => setShowHelp(false)}>
+                      [ Нажми ESC или тапни здесь для выхода ]
+                    </div>
+                  </div>
                 </div>
-
-                {/* Добавление Аномалии */}
-                <div className="mt-16 sm:mt-24 pt-8 border-t-2 border-neutral-900">
-                  <h2 className="text-neutral-700 uppercase text-[10px] sm:text-xs font-bold tracking-widest mb-6">
-                    Добавить аномалию <span className="text-neutral-800 lowercase font-normal">(исчезнет в 00:00)</span>
-                  </h2>
-                  <form onSubmit={addTask} className="flex flex-col gap-3 sm:flex-row sm:gap-4">
-                    <input type="text" value={newTaskTime} onChange={(e) => setNewTaskTime(e.target.value)} placeholder="00:00" className="bg-[#030303] border border-neutral-900 text-neutral-300 focus:border-neutral-600 outline-none px-4 py-4 w-full sm:w-28 placeholder-neutral-800 text-center text-lg sm:text-xl rounded-none" />
-                    <input type="text" value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder="СУЩНОСТЬ" className="bg-[#030303] border border-neutral-900 text-neutral-300 focus:border-neutral-600 outline-none px-4 py-4 flex-1 placeholder-neutral-800 uppercase tracking-widest rounded-none text-base sm:text-lg" />
-                    <button type="submit" className="bg-neutral-900 text-neutral-400 active:bg-neutral-700 sm:hover:bg-neutral-200 sm:hover:text-black transition-colors px-8 py-5 font-bold uppercase tracking-widest mt-2 sm:mt-0 rounded-none">
-                      Интегрировать
-                    </button>
-                  </form>
-                </div>
-              </div>
+              )}
             </div>
-          );
-        }
+        );
+      }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<BrutalistSchedule />);
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<BrutalistSchedule />);
     </script>
 </body>
 </html>
